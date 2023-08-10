@@ -1,18 +1,25 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
 const morgan = require('morgan');
 const { auth, requiresAuth } = require('express-openid-connect');
 const app = express();
+const cors = require('cors');
 
 const { User, Pet } = require('./db');
 
 // middleware
-app.use(cors());
+const corsOptions = {
+  //TODO - UPDATE TO PRODUCTION PATH
+  origin: 'http://localhost:3000',
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
+app.use(cors(corsOptions));
 
 //AUTHENTICATION middleware
 const {
@@ -40,6 +47,10 @@ const config = {
 // auth router attaches /login, /logout, and /callback routes to the baseURL
 app.use(auth(config));
 
+async function isAdmin(user){
+  if(user.admin == true) return user;
+}
+
 async function findOrCreateUser(user) {
   try {
     let userRecord = await User.findOne({ where: { auth0Id: user.sub } });
@@ -57,10 +68,6 @@ async function findOrCreateUser(user) {
   }
 }
 
-async function isAdmin(user){
-  if(user.admin == true) return user;
-}
-
 app.get('/', async (req, res) => {
   if (req.oidc.isAuthenticated()) {
     res.redirect('/dashboard');
@@ -72,23 +79,27 @@ app.get('/', async (req, res) => {
 
 // GET all pets route
 app.get('/pets', async (req, res, next) => {
-  const user = await findOrCreateUser(req.oidc.user);
-  if(!req.oidc.user){
-    res.sendStatus(401).send({error: 'You must be logged in to see your pets!'})
-  } else if(isAdmin(user)){
-    const admin = await isAdmin(user)
-    const pets = await Pet.findAll({where: {userId: user.id}})
-    res.send(pets)
-  } else {
-    try {
-      const pets = await Pet.findAll({where: {userId: user.id}})
-      res.send(pets);
-    } catch (error) {
-      console.error(error);
-      next(error);
+  if (!req.oidc.user) {
+    return res.status(401).send({ error: 'You must be logged in to see your pets!' });
+  }
+  
+  try {
+    const user = await findOrCreateUser(req.oidc.user);
+    let pets;
+
+    if (isAdmin(user)) {
+      pets = await Pet.findAll(); // Admin should be able to view all pets
+    } else {
+      pets = await Pet.findAll({ where: { userId: user.id } });
     }
+    
+    return res.send(pets);
+  } catch (error) {
+    console.error(error);
+    next(error);
   }
 });
+
 
 // Protected route to create a new pet
 app.post('/pets', async (req, res, next) => {
@@ -152,7 +163,7 @@ app.put('/pets/:id', requiresAuth(), async (req, res, next) => {
     if (isAdmin(user)) {
       pet = await Pet.findOne({ where: { id } });
     } else {
-      pet = await Pet.findOne({ where: { id, ownerId: req.user.username } });
+      pet = await Pet.findOne({ where: { id, userId: req.user.username } });
     }
     
     //If the pet is found based on the above criteria, the edits will apply.
