@@ -184,7 +184,7 @@ app.put('/pets/:id', requiresAuth(), async (req, res, next) => {
   }
 });
 
-app.get('/token', requiresAuth(), (req, res) => {
+app.get('/token', (req, res) => {
   res.send({ accessToken: req.oidc.accessToken });
 });
 
