@@ -1,0 +1,320 @@
+{
+	"info": {
+		"_postman_id": "ecfd2bc7-534b-4493-95fd-bac46d3656c1",
+		"name": "Pet Adoption Center",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "24838979"
+	},
+	"item": [
+		{
+			"name": "Create a Pet",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"name\": \"Example Pet\",\n  \"age\": 5\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:4000/pets",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"pets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get User Pets",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Verify response body\", function () {",
+							"    // Parse the response JSON body",
+							"    var responseBody = pm.response.json();",
+							"",
+							"    // Check if responseBody is an array and only contains one pet",
+							"    pm.expect(responseBody).to.be.an('array').that.has.lengthOf(1);",
+							"",
+							"    // Parse the first pet in the response",
+							"    var pet = responseBody[0];",
+							"    ",
+							"    // Verify the pet properties",
+							"    pm.expect(pet).to.have.property(\"name\", \"Example Pet\");",
+							"    pm.expect(pet).to.have.property(\"breed\", \"Test Breed\");",
+							"    pm.expect(pet).to.have.property(\"age\", 5);",
+							"    pm.expect(pet).to.have.property(\"weight\", 28);",
+							"    pm.expect(pet).to.have.property(\"userId\").and.to.not.be.undefined;",
+							"    ",
+							"    // Verify the createdAt and updatedAt properties are valid ISO 8601 dates",
+							"    pm.expect(pet.createdAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"    pm.expect(pet.updatedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:4000/pets",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"pets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Edit a Pet",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Verify response body\", function () {",
+							"    // Parse the response JSON body",
+							"    var responseBody = pm.response.json();",
+							"",
+							"    // Check if responseBody is an array and only contains one pet",
+							"    pm.expect(responseBody).to.be.an('array').that.has.lengthOf(1);",
+							"",
+							"    // Parse the first pet in the response",
+							"    var res = responseBody.message;",
+							"    var pet = responseBody.pet;",
+							"    ",
+							"    // Verify the pet properties",
+							"    pm.expect(res).to.have.property(\"message\", \"Pet updated successfully!\");",
+							"    pm.expect(pet).to.have.property(\"name\", \"Updated Name\");",
+							"    pm.expect(pet).to.have.property(\"breed\", \"Updated Breed\");",
+							"    pm.expect(pet).to.have.property(\"age\", 300);",
+							"    pm.expect(pet).to.have.property(\"weight\", 300);",
+							"    pm.expect(pet).to.have.property(\"userId\").and.to.not.be.undefined;",
+							"    ",
+							"    // Verify the createdAt and updatedAt properties are valid ISO 8601 dates",
+							"    pm.expect(pet.createdAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"    pm.expect(pet.updatedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Updated Name\",\n    \"age\": 300,\n    \"breed\": \"Updated Breed\",\n    \"weight\": 300\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:4000/pets/46",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"pets",
+						"46"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get One Pet",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Verify response body\", function () {",
+							"    // Parse the response JSON body",
+							"    var responseBody = pm.response.json();",
+							"",
+							"    // Check if responseBody is an array and only contains one pet",
+							"    pm.expect(responseBody).to.be.an('array').that.has.lengthOf(1);",
+							"",
+							"    // Parse the first pet in the response",
+							"    var pet = responseBody;",
+							"    ",
+							"    // Verify the pet properties",
+							"    pm.expect(pet).to.have.property(\"name\", \"Updated Name\");",
+							"    pm.expect(pet).to.have.property(\"breed\", \"Updated Breed\");",
+							"    pm.expect(pet).to.have.property(\"age\", 300);",
+							"    pm.expect(pet).to.have.property(\"weight\", 300);",
+							"    pm.expect(pet).to.have.property(\"user\", {",
+							"        \"id\": 3,",
+							"        \"auth0Id\": \"google-oauth2|100623739693896082847\",",
+							"        \"name\": \"Benjamin Frazer\",",
+							"        \"email\": \"benjamin.frazer@clover.com\",",
+							"        \"admin\": null,",
+							"        \"createdAt\": \"2023-05-25T18:50:46.232Z\",",
+							"        \"updatedAt\": \"2023-05-25T18:50:46.232Z\"",
+							"    })",
+							"    pm.expect(pet).to.have.property(\"userId\").and.to.not.be.undefined;",
+							"    ",
+							"    // Verify the createdAt and updatedAt properties are valid ISO 8601 dates",
+							"    pm.expect(pet.createdAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"    pm.expect(pet.updatedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:4000/pets/49",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"pets",
+						"49"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete a Pet",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Test for successful pet deletion",
+							"pm.test(\"Delete Pet - Success\", function () {",
+							"    // Make the request to delete a pet with a valid pet ID",
+							"    pm.sendRequest('/pets/1', 'DELETE', function (err, response) {",
+							"        // Verify the response status code",
+							"        pm.expect(response).to.have.status(200);",
+							"        ",
+							"        // Verify the response body",
+							"        var responseBody = pm.response.json();",
+							"        pm.expect(responseBody).to.deep.equal({ message: 'Pet deleted successfully.' });",
+							"    });",
+							"});",
+							"",
+							"// Test for unauthorized deletion",
+							"pm.test(\"Delete Pet - Unauthorized\", function () {",
+							"    // Make the request to delete a pet without authentication",
+							"    pm.sendRequest('/pets/1', 'DELETE', function (err, response) {",
+							"        // Verify the response status code",
+							"        pm.expect(response).to.have.status(401);",
+							"        ",
+							"        // Verify the response body",
+							"        var responseBody = pm.response.json();",
+							"        pm.expect(responseBody).to.deep.equal({ error: 'User not authorized to modify this pet.' });",
+							"    });",
+							"});",
+							"",
+							"// Test for deleting a non-existing pet",
+							"pm.test(\"Delete Pet - Non-existing\", function () {",
+							"    // Make the request to delete a pet with a non-existing pet ID",
+							"    pm.sendRequest('/pets/100', 'DELETE', function (err, response) {",
+							"        // Verify the response status code",
+							"        pm.expect(response).to.have.status(404);",
+							"        ",
+							"        // Verify the response body",
+							"        var responseBody = pm.response.json();",
+							"        pm.expect(responseBody).to.deep.equal({ error: 'Pet not found.' });",
+							"    });",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:4000/pets/47",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"pets",
+						"47"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "token",
+			"value": "averysafesecretbyme",
+			"type": "string"
+		}
+	]
+}

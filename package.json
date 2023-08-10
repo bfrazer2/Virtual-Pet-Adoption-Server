@@ -1,0 +1,32 @@
+{
+  "name": "virtual-pet-adoption",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "seed": "node db/seed.js",
+    "start": "node server.js",
+    "start-dev": "nodemon server.js",
+    "postinstall": "npm run seed"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@fontsource/inter": "^5.0.6",
+    "@mui/base": "^5.0.0-beta.9",
+    "@mui/icons-material": "^5.14.3",
+    "@mui/joy": "^5.0.0-beta.0",
+    "@mui/material": "^5.14.3",
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-openid-connect": "^2.16.0",
+    "morgan": "^1.10.0",
+    "nodemon": "^2.0.22",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.2",
+    "sequelize": "^6.31.1",
+    "sqlite3": "^5.1.6"
+  }
+}
