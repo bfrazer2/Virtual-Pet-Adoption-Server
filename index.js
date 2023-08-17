@@ -11,15 +11,10 @@ const { User, Pet } = require('./db');
 // middleware
 const corsOptions = {
   //TODO - UPDATE TO PRODUCTION PATH
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:4000'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 };
-
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({extended:true}));
-app.use(cors(corsOptions));
 
 //AUTHENTICATION middleware
 const {
@@ -44,17 +39,33 @@ const config = {
   }
 };
 
-// auth router attaches /login, /logout, and /callback routes to the baseURL
+app.use(cors(corsOptions));
 app.use(auth(config));
+app.use((req, res, next) => {
+  console.log('OIDC data:', req.oidc);
+  next();
+});
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({extended:true}));
 
-async function isAdmin(user){
+app.use(express.static(path.join(__dirname, 'build')));
+
+const isAdmin = (user) => {
   if(user.admin == true) return user;
 }
 
-async function findOrCreateUser(user) {
+const findOrCreateUser = async (user) => {
+  if (!user || !user.sub) {
+    throw new Error('User data is missing.');
+  }
+  console.log('user:', user);
+
   try {
     let userRecord = await User.findOne({ where: { auth0Id: user.sub } });
+    console.log('userRecord:', userRecord);
     if (!userRecord) {
+      console.log(user);
       userRecord = await User.create({
         auth0Id: user.sub,
         name: user.name,
@@ -76,13 +87,14 @@ app.get('/', async (req, res) => {
   }
 });
 
-
 // GET all pets route
 app.get('/pets', async (req, res, next) => {
-  if (!req.oidc.user) {
+  if (!req.oidc.isAuthenticated()) {
     return res.status(401).send({ error: 'You must be logged in to see your pets!' });
   }
   
+  console.log(req.oidc.user);
+
   try {
     const user = await findOrCreateUser(req.oidc.user);
     let pets;
@@ -102,7 +114,7 @@ app.get('/pets', async (req, res, next) => {
 
 
 // Protected route to create a new pet
-app.post('/pets', async (req, res, next) => {
+app.post('/pets', requiresAuth(), async (req, res, next) => {
   const user = await findOrCreateUser(req.oidc.user);
   if (!req.oidc.user) {
     res.sendStatus(401).send({ error: 'You must be logged in to create a pet!' });
@@ -118,7 +130,6 @@ app.post('/pets', async (req, res, next) => {
     }
   }
 });
-
 
 //Protected route to get a pet and it's associated user
 app.get('/pets/:id' , requiresAuth(), async (req, res, next) => {
@@ -185,13 +196,21 @@ app.put('/pets/:id', requiresAuth(), async (req, res, next) => {
 });
 
 app.get('/token', (req, res) => {
-  res.send({ accessToken: req.oidc.accessToken });
-});
-
-app.use(express.static(path.join(__dirname, 'build')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  if (!req.oidc) {
+    res.send({ error: "OIDC data missing" });
+    return;
+  }
+  if (!req.oidc.accessToken) {
+    res.send({ error: "Access token missing" });
+    return;
+  }
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.send({ accessToken: req.oidc.accessToken });
+    console.log('this is the access token:', req.oidc.accessToken);
+  } catch {
+    res.send({ status: 401, message: "Not authenticated" });
+  }
 });
 
 app.use((error, req, res, next) => {
