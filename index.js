@@ -2,13 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
-const { auth, requiresAuth } = require('express-openid-connect');
 const app = express();
 const cors = require('cors');
+const jwksRsa = require('jwks-rsa');
+const passport = require('passport');
+const JwtStrategy = require('passport-jwt').Strategy;
+const ExtractJwt = require('passport-jwt').ExtractJwt;
+
 
 const { User, Pet } = require('./db');
 
-// middleware
+
+// Application Level Middleware
 const corsOptions = {
   //TODO - UPDATE TO PRODUCTION PATH
   origin: ['http://localhost:3000', 'http://localhost:4000'],
@@ -16,108 +21,91 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-//AUTHENTICATION middleware
 const {
-  AUTH0_SECRET,
-  AUTH0_CLIENT_SECRET,
   AUTH0_AUDIENCE,
-  AUTH0_CLIENT_ID,
   AUTH0_BASE_URL,
 } = process.env;
 
-const config = {
-  authRequired: false,
-  auth0Logout: true,
-  secret: AUTH0_SECRET,
-  baseURL: AUTH0_AUDIENCE,
-  clientID: AUTH0_CLIENT_ID,
-  clientSecret: AUTH0_CLIENT_SECRET,
-  issuerBaseURL: AUTH0_BASE_URL,
-  authorizationParams: {
-    response_type: 'code',
-    response_mode: 'query'
-  }
-};
-
 app.use(cors(corsOptions));
-app.use(auth(config));
+app.use(morgan('dev'));
 app.use((req, res, next) => {
-  console.log('OIDC data:', req.oidc);
+  console.log('Request Headers:', req.headers);
   next();
 });
-app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
-
 app.use(express.static(path.join(__dirname, 'build')));
+
+// Authentication Initialization
+const opts = {
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: jwksRsa.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `${AUTH0_BASE_URL}/.well-known/jwks.json`
+  }),
+  audience: AUTH0_AUDIENCE,
+  issuer: `${AUTH0_BASE_URL}/`,
+  algorithms: ['RS256']
+};
+
+passport.use(new JwtStrategy(opts, (jwt_payload, done) => {
+  return done(null, jwt_payload);
+}));
+
+app.use(passport.initialize());
 
 const isAdmin = (user) => {
   if(user.admin == true) return user;
 }
 
-const findOrCreateUser = async (user) => {
-  if (!user || !user.sub) {
-    throw new Error('User data is missing.');
-  }
-  console.log('user:', user);
-
+async function findOrCreateUser(jwtPayload) {
   try {
-    let userRecord = await User.findOne({ where: { auth0Id: user.sub } });
-    console.log('userRecord:', userRecord);
-    if (!userRecord) {
-      console.log(user);
-      userRecord = await User.create({
-        auth0Id: user.sub,
-        name: user.name,
-        email: user.email,
-        admin: false
-      });
+    let user = await User.findOne({ auth0Id: jwtPayload.sub });
+
+    if (!user) {
+        user = new User({
+            auth0Id: jwtPayload.sub,
+            name: jwtPayload.name || "", 
+            email: jwtPayload.email || "", 
+        });
+        await user.save();
     }
-    return userRecord;
-  } catch (error) {
-    console.error(error);
+    return user;
+  } catch (err) {
+    throw err;
   }
 }
 
-app.get('/', async (req, res) => {
-  if (req.oidc.isAuthenticated()) {
-    res.redirect('/dashboard');
-  } else {
-    res.redirect('/login');
-  }
+app.get('/', (req, res) => {
+  res.json({
+    message: "Pet Adoption Center API",
+    version: "1.0.0"
+  });
 });
 
-// GET all pets route
-app.get('/pets', async (req, res, next) => {
-  if (!req.oidc.isAuthenticated()) {
-    return res.status(401).send({ error: 'You must be logged in to see your pets!' });
-  }
-  
-  console.log(req.oidc.user);
 
+// GET all pets route
+app.get('/pets', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
   try {
-    const user = await findOrCreateUser(req.oidc.user);
+    const user = await findOrCreateUser(req.user);
     let pets;
 
-    if (isAdmin(user)) {
-      pets = await Pet.findAll(); // Admin should be able to view all pets
-    } else {
-      pets = await Pet.findAll({ where: { userId: user.id } });
-    }
+    pets = await Pet.findAll({ where: { userId: user.id } });
     
     return res.send(pets);
   } catch (error) {
-    console.error(error);
+    console.error('get /pets error:', error);
     next(error);
   }
 });
 
-
 // Protected route to create a new pet
-app.post('/pets', requiresAuth(), async (req, res, next) => {
-  const user = await findOrCreateUser(req.oidc.user);
-  if (!req.oidc.user) {
-    res.sendStatus(401).send({ error: 'You must be logged in to create a pet!' });
+app.post('/pets', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+  const user = await findOrCreateUser(req.user);
+  if (!user) {
+    return res.status(401).send({ error: 'You must be logged in to create a pet!' });
   } else {
     try {
       const { name, breed, age, weight } = req.body;
@@ -125,14 +113,14 @@ app.post('/pets', requiresAuth(), async (req, res, next) => {
       user.addPet(newPet);
       res.send(newPet);
     } catch (error) {
-      console.error(error);
+      console.error('post /pets error:', error);
       next(error);
     }
   }
 });
 
 //Protected route to get a pet and it's associated user
-app.get('/pets/:id' , requiresAuth(), async (req, res, next) => {
+app.get('/pets/:id' , passport.authenticate('jwt', { session: false }), async (req, res, next) => {
   const pet = await Pet.findOne({where: {id: req.params.id}, include: User}) 
   if (pet === null) {
     res.status(404).json({error: "Pet not found."})
@@ -142,10 +130,10 @@ app.get('/pets/:id' , requiresAuth(), async (req, res, next) => {
 })
 
 // Protected route to delete a pet
-app.delete('/pets/:id', requiresAuth(), async (req, res, next) => {
+app.delete('/pets/:id', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const user = await findOrCreateUser(req.oidc.user);
+    const user = await findOrCreateUser(req.user);
     const petExistCheck = await Pet.findOne({where: {id}})
     const petWithAuth = await Pet.findOne({ where: { id, userId: user.id } });
     if (!petExistCheck) {
@@ -157,17 +145,17 @@ app.delete('/pets/:id', requiresAuth(), async (req, res, next) => {
       res.send({ message: 'Pet deleted successfully.' });
     }
   } catch (error) {
-    console.error(error);
+    console.error('delete /pets/:id error:', error);
     next(error);
   }
 });
 
 // As a User, I want to edit entries in the database
-app.put('/pets/:id', requiresAuth(), async (req, res, next) => {
+app.put('/pets/:id', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, age, breed, weight } = req.body;
-    const user = await findOrCreateUser(req.oidc.user);
+    const user = await findOrCreateUser(req.user);
     let pet;
 
     //If the user is an admin, they may edit any pet in the db.
@@ -190,27 +178,16 @@ app.put('/pets/:id', requiresAuth(), async (req, res, next) => {
       return res.send({ message: 'Pet updated successfully!', pet: pet });
     }
   } catch (error) {
-    console.error(error);
+    console.error('put /pets/:id error:', error);
     return next(error);
   }
 });
 
-app.get('/token', (req, res) => {
-  if (!req.oidc) {
-    res.send({ error: "OIDC data missing" });
-    return;
+app.use((err, req, res, next) => {
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).send({ error: 'Invalid or missing token.' });
   }
-  if (!req.oidc.accessToken) {
-    res.send({ error: "Access token missing" });
-    return;
-  }
-  try {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.send({ accessToken: req.oidc.accessToken });
-    console.log('this is the access token:', req.oidc.accessToken);
-  } catch {
-    res.send({ status: 401, message: "Not authenticated" });
-  }
+  next(err);
 });
 
 app.use((error, req, res, next) => {
