@@ -3,14 +3,56 @@ const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
 const app = express();
+app.use(logIncomingRequest);
 const cors = require('cors');
-const jwksRsa = require('jwks-rsa');
-const passport = require('passport');
-const JwtStrategy = require('passport-jwt').Strategy;
-const ExtractJwt = require('passport-jwt').ExtractJwt;
+const jwt = require('jsonwebtoken');
+const jwksClient = require('jwks-rsa');
 
+const jwksUri = `${process.env.AUTH0_BASE_URL}/.well-known/jwks.json`;
+const client = jwksClient({ jwksUri });
+
+async function validateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send('Authorization header missing or malformed');
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  const decoded = jwt.decode(token, { complete: true });
+  if (!decoded || !decoded.header || !decoded.header.kid) {
+    return res.status(401).send('Invalid token');
+  }
+
+  client.getSigningKey(decoded.header.kid, (err, key) => {
+    if (err) {
+      return res.status(500).send('Error fetching JWKS');
+    }
+
+    const signingKey = key.publicKey || key.rsaPublicKey;
+
+    jwt.verify(token, signingKey, { algorithms: ["RS256"], audience: process.env.AUTH0_AUDIENCE, issuer: `${process.env.AUTH0_BASE_URL}/` }, (err, decoded) => {
+      if (err) {
+        return res.status(401).send('Token verification failed');
+      }
+
+      req.user = decoded;
+      next();
+    });
+  });
+}
 
 const { User, Pet } = require('./db');
+
+function logIncomingRequest(req, res, next) {
+  console.log('======================');
+  console.log(`Incoming Request: ${req.method} ${req.url}`);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('======================');
+  next();
+}
 
 
 // Application Level Middleware
@@ -26,49 +68,48 @@ const {
   AUTH0_BASE_URL,
 } = process.env;
 
-app.use(cors(corsOptions));
-app.use(morgan('dev'));
 app.use((req, res, next) => {
-  console.log('Request Headers:', req.headers);
+  console.log('CORS Middleware Triggered');
+  next();
+});
+app.use(cors(corsOptions));
+
+app.use((req, res, next) => {
+  console.log('Morgan Middleware Triggered');
+  next();
+});
+app.use(morgan('dev'));
+
+app.use((req, res, next) => {
+  console.log('JSON Parser Middleware Triggered');
   next();
 });
 app.use(express.json());
-app.use(express.urlencoded({extended:true}));
+
+app.use((req, res, next) => {
+  console.log('URL Encoded Parser Middleware Triggered');
+  next();
+});
+app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  console.log('Static File Serving Middleware Triggered');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'build')));
 
-// Authentication Initialization
-const opts = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: jwksRsa.expressJwtSecret({
-    cache: true,
-    rateLimit: true,
-    jwksRequestsPerMinute: 5,
-    jwksUri: `${AUTH0_BASE_URL}/.well-known/jwks.json`
-  }),
-  audience: AUTH0_AUDIENCE,
-  issuer: `${AUTH0_BASE_URL}/`,
-  algorithms: ['RS256']
-};
-
-passport.use(new JwtStrategy(opts, (jwt_payload, done) => {
-  return done(null, jwt_payload);
-}));
-
-app.use(passport.initialize());
 
 const isAdmin = (user) => {
-  if(user.admin == true) return user;
+if(user.admin == true) return user;
 }
 
 async function findOrCreateUser(jwtPayload) {
   try {
-    let user = await User.findOne({ auth0Id: jwtPayload.sub });
+    let user = await User.findOne({ where: { auth0Id: jwtPayload.sub } });
 
     if (!user) {
         user = new User({
             auth0Id: jwtPayload.sub,
-            name: jwtPayload.name || "", 
-            email: jwtPayload.email || "", 
         });
         await user.save();
     }
@@ -85,24 +126,26 @@ app.get('/', (req, res) => {
   });
 });
 
-
 // GET all pets route
-app.get('/pets', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+app.get('/pets', validateToken, async (req, res, next) => {
+  console.log("Inside /pets route handler");
   try {
-    const user = await findOrCreateUser(req.user);
-    let pets;
+      console.info('REQ.USER: ', req.user)
+      const user = await findOrCreateUser(req.user);
+      let pets;
 
-    pets = await Pet.findAll({ where: { userId: user.id } });
-    
-    return res.send(pets);
+      pets = await Pet.findAll({ where: { userId: user.id } });
+      
+      return res.send(pets);
   } catch (error) {
-    console.error('get /pets error:', error);
-    next(error);
+      console.error('get /pets error:', error);
+      next(error);
   }
 });
 
+
 // Protected route to create a new pet
-app.post('/pets', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+app.post('/pets', validateToken, async (req, res, next) => {
   const user = await findOrCreateUser(req.user);
   if (!user) {
     return res.status(401).send({ error: 'You must be logged in to create a pet!' });
@@ -120,7 +163,7 @@ app.post('/pets', passport.authenticate('jwt', { session: false }), async (req, 
 });
 
 //Protected route to get a pet and it's associated user
-app.get('/pets/:id' , passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+app.get('/pets/:id' , validateToken, async (req, res, next) => {
   const pet = await Pet.findOne({where: {id: req.params.id}, include: User}) 
   if (pet === null) {
     res.status(404).json({error: "Pet not found."})
@@ -130,7 +173,7 @@ app.get('/pets/:id' , passport.authenticate('jwt', { session: false }), async (r
 })
 
 // Protected route to delete a pet
-app.delete('/pets/:id', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+app.delete('/pets/:id', validateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await findOrCreateUser(req.user);
@@ -151,7 +194,7 @@ app.delete('/pets/:id', passport.authenticate('jwt', { session: false }), async 
 });
 
 // As a User, I want to edit entries in the database
-app.put('/pets/:id', passport.authenticate('jwt', { session: false }), async (req, res, next) => {
+app.put('/pets/:id', validateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, age, breed, weight } = req.body;
@@ -195,5 +238,10 @@ app.use((error, req, res, next) => {
   if(res.statusCode < 400) res.status(500);
   res.send({error: error.message, name: error.name, message: error.message});
 });
+
+app.all('*', (req, res) => {
+  res.send('Catch all route triggered');
+});
+
 
 module.exports = { app };
