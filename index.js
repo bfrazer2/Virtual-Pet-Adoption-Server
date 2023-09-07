@@ -68,34 +68,10 @@ const {
   AUTH0_BASE_URL,
 } = process.env;
 
-app.use((req, res, next) => {
-  console.log('CORS Middleware Triggered');
-  next();
-});
 app.use(cors(corsOptions));
-
-app.use((req, res, next) => {
-  console.log('Morgan Middleware Triggered');
-  next();
-});
 app.use(morgan('dev'));
-
-app.use((req, res, next) => {
-  console.log('JSON Parser Middleware Triggered');
-  next();
-});
 app.use(express.json());
-
-app.use((req, res, next) => {
-  console.log('URL Encoded Parser Middleware Triggered');
-  next();
-});
 app.use(express.urlencoded({ extended: true }));
-
-app.use((req, res, next) => {
-  console.log('Static File Serving Middleware Triggered');
-  next();
-});
 app.use(express.static(path.join(__dirname, 'build')));
 
 
@@ -106,7 +82,7 @@ if(user.admin == true) return user;
 async function findOrCreateUser(jwtPayload) {
   try {
     let user = await User.findOne({ where: { auth0Id: jwtPayload.sub } });
-
+    console.log('USER: ', user);
     if (!user) {
         user = new User({
             auth0Id: jwtPayload.sub,
@@ -128,7 +104,6 @@ app.get('/', (req, res) => {
 
 // GET all pets route
 app.get('/pets', validateToken, async (req, res, next) => {
-  console.log("Inside /pets route handler");
   try {
       console.info('REQ.USER: ', req.user)
       const user = await findOrCreateUser(req.user);
@@ -149,10 +124,24 @@ app.post('/pets', validateToken, async (req, res, next) => {
   const user = await findOrCreateUser(req.user);
   if (!user) {
     return res.status(401).send({ error: 'You must be logged in to create a pet!' });
+  } else if (!user.id) {
+    return res.status(400).send({error: "Couldn't find user id, invalid request."})
   } else {
     try {
       const { name, breed, age, weight, primaryColor, secondaryColor } = req.body;
-      const newPet = await Pet.create({ name, breed, age, weight, primaryColor, secondaryColor, userId: user.id });
+      const newPet = await Pet.create(
+        { name, 
+          breed, 
+          age, 
+          weight, 
+          primaryColor, 
+          secondaryColor,
+          hunger: 100,
+          thirst: 100,
+          friendship: 25, 
+          favorite: false, 
+          userId: user.id }
+        );
       user.addPet(newPet);
       res.send(newPet);
     } catch (error) {
@@ -197,7 +186,7 @@ app.delete('/pets/:id', validateToken, async (req, res, next) => {
 app.put('/pets/:id', validateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, age, breed, weight } = req.body;
+    const { name, age, breed, weight, hunger, thirst, friendship, favorite } = req.body;
     const user = await findOrCreateUser(req.user);
     let pet;
 
@@ -205,7 +194,7 @@ app.put('/pets/:id', validateToken, async (req, res, next) => {
     if (isAdmin(user)) {
       pet = await Pet.findOne({ where: { id } });
     } else {
-      pet = await Pet.findOne({ where: { id, userId: req.user.username } });
+      pet = await Pet.findOne({ where: { id, userId: user.id } });
     }
     
     //If the pet is found based on the above criteria, the edits will apply.
@@ -217,6 +206,10 @@ app.put('/pets/:id', validateToken, async (req, res, next) => {
       if (age !== undefined) pet.age = age;
       if (breed !== undefined) pet.breed = breed;
       if (weight !== undefined) pet.weight = weight;
+      if (hunger !== undefined) pet.hunger = hunger;
+      if (thirst !== undefined) pet.thirst = thirst;
+      if (friendship !== undefined) pet.friendship = friendship;
+      if (favorite !== undefined) pet.favorite = favorite;
       await pet.save();
       return res.send({ message: 'Pet updated successfully!', pet: pet });
     }
