@@ -151,8 +151,8 @@ app.post('/pets', validateToken, async (req, res, next) => {
     return res.status(401).send({ error: 'You must be logged in to create a pet!' });
   } else {
     try {
-      const { name, breed, age, weight } = req.body;
-      const newPet = await Pet.create({ name, breed, age, weight, userId: user.id });
+      const { name, breed, age, weight, primaryColor, secondaryColor } = req.body;
+      const newPet = await Pet.create({ name, breed, age, weight, primaryColor, secondaryColor, userId: user.id });
       user.addPet(newPet);
       res.send(newPet);
     } catch (error) {
