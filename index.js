@@ -57,8 +57,7 @@ function logIncomingRequest(req, res, next) {
 
 // Application Level Middleware
 const corsOptions = {
-  //TODO - UPDATE TO PRODUCTION PATH
-  origin: ['http://localhost:3000', 'http://localhost:4000'],
+  origin: ['https://virtual-pet-adoption-client.onrender.com'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 };
