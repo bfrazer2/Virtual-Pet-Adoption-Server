@@ -2,6 +2,9 @@
   "name": "virtual-pet-adoption",
   "description": "",
   "main": "index.js",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "seed": "node db/seed.js",
     "start": "node server.js",
