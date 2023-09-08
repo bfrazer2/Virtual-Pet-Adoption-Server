@@ -231,9 +231,8 @@ app.use((error, req, res, next) => {
   res.send({error: error.message, name: error.name, message: error.message});
 });
 
-app.all('*', (req, res) => {
-  res.send('Catch all route triggered');
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
-
 
 module.exports = { app };
