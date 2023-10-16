@@ -57,7 +57,7 @@ function logIncomingRequest(req, res, next) {
 
 // Application Level Middleware
 const corsOptions = {
-  origin: ['https://virtual-pet-adoption-client.onrender.com'],
+  origin: ['https://virtual-pet-adoption-client.onrender.com', 'http://localhost:3000'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 };
