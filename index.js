@@ -13,7 +13,7 @@ const client = jwksClient({ jwksUri });
 
 async function validateToken(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Authorization header missing or malformed');
   }
@@ -75,7 +75,7 @@ app.use(express.static(path.join(__dirname, 'build')));
 
 
 const isAdmin = (user) => {
-if(user.admin == true) return user;
+  if (user.admin == true) return user;
 }
 
 async function findOrCreateUser(jwtPayload) {
@@ -83,10 +83,10 @@ async function findOrCreateUser(jwtPayload) {
     let user = await User.findOne({ where: { auth0Id: jwtPayload.sub } });
     console.log('USER: ', user);
     if (!user) {
-        user = new User({
-            auth0Id: jwtPayload.sub,
-        });
-        await user.save();
+      user = new User({
+        auth0Id: jwtPayload.sub,
+      });
+      await user.save();
     }
     return user;
   } catch (err) {
@@ -104,16 +104,16 @@ app.get('/', (req, res) => {
 // GET all pets route
 app.get('/pets', validateToken, async (req, res, next) => {
   try {
-      console.info('REQ.USER: ', req.user)
-      const user = await findOrCreateUser(req.user);
-      let pets;
+    console.info('REQ.USER: ', req.user)
+    const user = await findOrCreateUser(req.user);
+    let pets;
 
-      pets = await Pet.findAll({ where: { userId: user.id } });
-      
-      return res.send(pets);
+    pets = await Pet.findAll({ where: { userId: user.id } });
+
+    return res.send(pets);
   } catch (error) {
-      console.error('get /pets error:', error);
-      next(error);
+    console.error('get /pets error:', error);
+    next(error);
   }
 });
 
@@ -124,23 +124,24 @@ app.post('/pets', validateToken, async (req, res, next) => {
   if (!user) {
     return res.status(401).send({ error: 'You must be logged in to create a pet!' });
   } else if (!user.id) {
-    return res.status(400).send({error: "Couldn't find user id, invalid request."})
+    return res.status(400).send({ error: "Couldn't find user id, invalid request." })
   } else {
     try {
-      const { name, breed, age, weight, primaryColor, secondaryColor } = req.body;
+      const { name, breed, age, weight, color } = req.body;
       const newPet = await Pet.create(
-        { name, 
-          breed, 
-          age, 
-          weight, 
-          primaryColor, 
-          secondaryColor,
+        {
+          name,
+          breed,
+          age,
+          weight,
+          color,
           hunger: 100,
           thirst: 100,
-          friendship: 25, 
-          favorite: false, 
-          userId: user.id }
-        );
+          friendship: 25,
+          favorite: false,
+          userId: user.id
+        }
+      );
       user.addPet(newPet);
       res.send(newPet);
     } catch (error) {
@@ -151,10 +152,10 @@ app.post('/pets', validateToken, async (req, res, next) => {
 });
 
 //Protected route to get a pet and it's associated user
-app.get('/pets/:id' , validateToken, async (req, res, next) => {
-  const pet = await Pet.findOne({where: {id: req.params.id}, include: User}) 
+app.get('/pets/:id', validateToken, async (req, res, next) => {
+  const pet = await Pet.findOne({ where: { id: req.params.id }, include: User })
   if (pet === null) {
-    res.status(404).json({error: "Pet not found."})
+    res.status(404).json({ error: "Pet not found." })
   } else {
     res.json(pet)
   }
@@ -165,12 +166,12 @@ app.delete('/pets/:id', validateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await findOrCreateUser(req.user);
-    const petExistCheck = await Pet.findOne({where: {id}})
+    const petExistCheck = await Pet.findOne({ where: { id } })
     const petWithAuth = await Pet.findOne({ where: { id, userId: user.id } });
     if (!petExistCheck) {
       return res.status(404).send({ error: 'Pet not found.' });
     } else if (!petWithAuth && !isAdmin(user)) {
-      return res.status(401).send({error: 'User not authorized to modify this pet.'})
+      return res.status(401).send({ error: 'User not authorized to modify this pet.' })
     } else {
       await petWithAuth.destroy();
       res.send({ message: 'Pet deleted successfully.' });
@@ -195,7 +196,7 @@ app.put('/pets/:id', validateToken, async (req, res, next) => {
     } else {
       pet = await Pet.findOne({ where: { id, userId: user.id } });
     }
-    
+
     //If the pet is found based on the above criteria, the edits will apply.
     if (!pet) {
       return res.status(404).send({ error: 'Pet not found.' });
@@ -227,8 +228,8 @@ app.use((err, req, res, next) => {
 
 app.use((error, req, res, next) => {
   console.error('SERVER ERROR: ', error);
-  if(res.statusCode < 400) res.status(500);
-  res.send({error: error.message, name: error.name, message: error.message});
+  if (res.statusCode < 400) res.status(500);
+  res.send({ error: error.message, name: error.name, message: error.message });
 });
 
 app.get('*', (req, res) => {

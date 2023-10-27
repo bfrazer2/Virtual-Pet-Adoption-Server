@@ -4,13 +4,13 @@ const { users, pets } = require('./seedData');
 
 const seed = async () => {
   try {
-    await sequelize.sync({ force: true }); // recreate db
+    await sequelize.sync({ force: true });
     const createdUsers = await User.bulkCreate(users);
     const createdPets = await Pet.bulkCreate(pets);
-    for(let i=0; i<createdPets.length; ++i){
-        let pet = createdPets[i];
-        let user = createdUsers[i % 2];
-        await user.addPet(pet);
+    for (let i = 0; i < createdPets.length; ++i) {
+      let pet = createdPets[i];
+      let user = createdUsers[i % 2];
+      await user.addPet(pet);
     }
   } catch (error) {
     console.error(error);
