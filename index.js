@@ -211,7 +211,7 @@ app.put('/pets/:id', validateToken, async (req, res, next) => {
       if (friendship !== undefined) pet.friendship = friendship;
       if (favorite !== undefined) pet.favorite = favorite;
       await pet.save();
-      return res.send({ message: 'Pet updated successfully!', pet: pet });
+      return res.send(pet);
     }
   } catch (error) {
     console.error('put /pets/:id error:', error);
